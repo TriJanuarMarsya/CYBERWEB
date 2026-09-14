@@ -10,7 +10,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%236c5ce7' width='100' height='100' rx='20'/><text x='50' y='65' font-size='50' text-anchor='middle' fill='white'>D</text></svg>">
+<link rel="apple-touch-icon" href="/Logo-Cyber.png">
 <title>Cyber Drive</title>
 <style>
 :root {
@@ -69,7 +69,8 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:
 /* ===== SIDEBAR ===== */
 .sidebar { width:250px; background:var(--sidebar); display:flex; flex-direction:column; flex-shrink:0; border-right:1px solid var(--border); }
 .sidebar-header { padding:20px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
-.sidebar-header .logo { width:36px; height:36px; background:var(--accent); border-radius:10px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:1.1rem; color:#fff; }
+.sidebar-header .logo { width:36px; height:36px; flex-shrink:0; }
+.sidebar-header .logo img { width:100%; height:100%; object-fit:contain; border-radius:8px; }
 .sidebar-header h2 { font-size:1rem; }
 .sidebar-header h2 span { color:var(--accent); }
 .sidebar-nav { flex:1; overflow-y:auto; padding:12px 10px; }
@@ -467,7 +468,7 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
   <!-- SIDEBAR -->
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <div class="logo">D</div>
+      <div class="logo"><img src="/Logo-Cyber.png" alt="Cyber Drive"></div>
       <h2><span>Drive</span> Storage</h2>
     </div>
     <div class="sidebar-nav">
