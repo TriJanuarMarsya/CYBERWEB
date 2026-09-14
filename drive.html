@@ -405,6 +405,7 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
   .topbar-right .search-box { display:none; }
 }
 </style>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -644,6 +645,14 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
         <div class="content-grid full">
           <div class="panel">
             <h3 style="margin-bottom:20px;">Upload Skrip</h3>
+            <div class="form-group">
+              <label>Hubungkan Google Drive (upload ke Drive kamu sendiri)</label>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" id="gdConnectBtn" onclick="gdAuth()">🔗 Hubungkan Google Drive</button>
+                <span id="gdStatus" style="font-size:.82rem;color:var(--text2);">Belum terhubung</span>
+              </div>
+              <p class="small" style="margin-top:8px;color:var(--text2);">Setelah terhubung, skrip yang kamu upload otomatis disimpan ke folder khusus "CyberDrive Submission" di Google Drive milikmu.</p>
+            </div>
             <div class="upload-zone" id="skripDropZone" onclick="document.getElementById('skripFile').click()">
               <div class="icon">📄</div>
               <p>Seret file dokumen ke sini atau klik untuk memilih</p>
@@ -786,6 +795,14 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
               </div>
             </div>
           </div>
+          <div style="margin-top:20px;padding:16px;background:var(--input);border-radius:10px;">
+            <h4 style="margin-bottom:8px;">⚙️ Pengaturan Google Drive</h4>
+            <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px;">Masukkan Google OAuth Client ID kamu agar user bisa upload skrip ke Google Drive masing-masing.</p>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="gdClientIdInput" value="${esc(localStorage.getItem('gd_client_id')||'')}" placeholder="123456789012-xxxx.apps.googleusercontent.com" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.85rem;">
+              <button class="btn btn-primary btn-sm" onclick="saveGdClientId()">Simpan</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -810,6 +827,7 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
           <div class="admin-tabs">
             <button class="active" onclick="switchAdminTab('overview')">📊 Overview</button>
             <button onclick="switchAdminTab('users')">👥 Kelola User</button>
+            <button onclick="switchAdminTab('review')">📝 Review Tugas</button>
             <button onclick="switchAdminTab('monitor')">👁 Monitor Siswa</button>
             <button onclick="switchAdminTab('absensiAll')">📋 Semua Absensi</button>
             <button onclick="switchAdminTab('links')">🔗 Verifikasi Link</button>
@@ -837,6 +855,27 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
               <div class="spacer"></div>
             </div>
             <div id="adminUserCards"></div>
+          </div>
+
+          <!-- TAB REVIEW TUGAS -->
+          <div class="admin-tab" id="adminTab-review">
+            <div class="filters">
+              <select id="reviewTypeFilter" onchange="renderAdminReview()">
+                <option value="">Semua Tipe</option>
+                <option value="skrip">Skrip</option>
+                <option value="video">Link Konten</option>
+              </select>
+              <select id="reviewStatusFilter" onchange="renderAdminReview()">
+                <option value="">Semua Status</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Disetujui</option>
+                <option value="revision">Perlu Revisi</option>
+              </select>
+              <select id="reviewUserFilter" onchange="renderAdminReview()"></select>
+              <div class="spacer"></div>
+              <span id="reviewSummary" style="font-size:.8rem;color:var(--text2);"></span>
+            </div>
+            <div id="adminReviewCards"></div>
           </div>
 
           <!-- TAB MONITOR SISWA -->
@@ -971,8 +1010,8 @@ function initData(){
 
   if(!DB.get('skrips').length){
     DB.set('skrips',[
-      {id:'s1',title:'Modul PHP Laravel',desc:'Panduan lengkap PHP Laravel 10',cat:'Modul',ver:'v2.1',file:'modul_laravel.pdf',size:2500000,uploadBy:'admin',date:Date.now()-86400000*3,status:'active'},
-      {id:'s2',title:'Proposal Proyek Website',desc:'Proposal pengembangan website institusi',cat:'Proposal',ver:'v1.0',file:'proposal_website.docx',size:1200000,uploadBy:'budi',date:Date.now()-86400000,status:'active'}
+      {id:'s1',title:'Modul PHP Laravel',desc:'Panduan lengkap PHP Laravel 10',cat:'Modul',ver:'v2.1',file:'modul_laravel.pdf',size:2500000,uploadBy:'admin',date:Date.now()-86400000*3,status:'active',reviewStatus:'pending',reviewComment:''},
+      {id:'s2',title:'Proposal Proyek Website',desc:'Proposal pengembangan website institusi',cat:'Proposal',ver:'v1.0',file:'proposal_website.docx',size:1200000,uploadBy:'budi',date:Date.now()-86400000,status:'active',reviewStatus:'pending',reviewComment:''}
     ]);
   }
   if(!DB.get('comments').length){
@@ -1015,7 +1054,7 @@ function handleLogin(e){
   currentUser=found;
   DB.set('currentUser',found);
   addActivity('Login ke sistem');
-  addNotification('info','Login berhasil, selamat datang '+found.name);
+  addNotification(found.id,'info','Login berhasil, selamat datang '+found.name);
   enterApp();
 }
 
@@ -1174,6 +1213,7 @@ function videoCard(v){
       <h4>${esc(v.title)}</h4>
       <div class="meta"><span>${v.cat}</span><span>${v.link?'🔗 Link':formatSize(v.size)}</span></div>
       <div class="meta" style="margin-top:4px;"><span>oleh ${v.uploadBy}</span><span>💬 ${cmts}</span></div>
+      ${v.reviewStatus?`<div style="margin-top:6px;"><span class="badge ${v.reviewStatus==='approved'?'badge-green':v.reviewStatus==='revision'?'badge-red':'badge-yellow'}" style="font-size:.6rem;">${v.reviewStatus==='approved'?'✅ Disetujui':v.reviewStatus==='revision'?'🔄 Revisi':'⏳ Pending'}</span></div>`:''}
       <div style="margin-top:6px;">${(v.tags||[]).map(t=>'<span class="tag">'+esc(t)+'</span>').join('')}</div>
     </div>
   </div>`;
@@ -1197,16 +1237,18 @@ function renderSkrips(){
 
 function skripCard(s){
   const cmts=DB.get('comments').filter(c=>c.targetType==='skrip'&&c.targetId===s.id).length;
-  const ext=(s.file||'').split('.').pop().toUpperCase();
+  const ext=((s.driveName||s.file)||'').split('.').pop().toUpperCase();
   return `<div class="file-card" onclick="openDetail('skrip','${s.id}')">
     <div class="thumb" style="background:linear-gradient(135deg,#16213e,#0f3460);">
       <span class="type-badge">${ext}</span>
       <span style="font-size:2.5rem;">📄</span>
+      ${s.driveLink?'<span class="duration">📁 DRIVE</span>':''}
     </div>
     <div class="info">
       <h4>${esc(s.title)}</h4>
       <div class="meta"><span>${s.cat} · ${s.ver||'-'}</span><span>${formatSize(s.size)}</span></div>
       <div class="meta" style="margin-top:4px;"><span>oleh ${s.uploadBy}</span><span>💬 ${cmts}</span></div>
+      ${s.reviewStatus?`<div style="margin-top:6px;"><span class="badge ${s.reviewStatus==='approved'?'badge-green':s.reviewStatus==='revision'?'badge-red':'badge-yellow'}" style="font-size:.6rem;">${s.reviewStatus==='approved'?'✅ Disetujui':s.reviewStatus==='revision'?'🔄 Revisi':'⏳ Pending'}</span></div>`:''}
     </div>
   </div>`;
 }
@@ -1418,12 +1460,14 @@ function uploadVideo(){
     thumb:'',
     uploadBy:currentUser.username,
     date:Date.now(),
-    status:'active'
+    status:'active',
+    reviewStatus:'pending',
+    reviewComment:''
   };
   vids.push(newV);
   DB.set('videos',vids);
   addActivity('Menambah link konten "'+title+'"');
-  addNotification('success','Link konten "'+title+'" berhasil ditambahkan');
+  addNotification(currentUser.id,'success','Link konten "'+title+'" berhasil ditambahkan');
   toast('Link konten berhasil disimpan!','success');
   document.getElementById('vLink').value='';
   document.getElementById('vTitle').value='';
@@ -1470,22 +1514,150 @@ function uploadSkrip(){
         size:skripFileData.size,
         uploadBy:currentUser.username,
         date:Date.now(),
-        status:'active'
+        status:'active',
+        reviewStatus:'pending',
+        reviewComment:''
       };
-      sks.push(newS);
-      DB.set('skrips',sks);
-      addActivity('Upload skrip "'+title+'"');
-      addNotification('success','Skrip "'+title+'" berhasil ditambahkan');
-      toast('Skrip berhasil diupload!','success');
-      skripFileData=null;
-      document.getElementById('skripFileName').style.display='none';
-      document.getElementById('sTitle').value='';
-      document.getElementById('sDesc').value='';
-      document.getElementById('sVer').value='';
-      document.getElementById('skripFile').value='';
-      setTimeout(()=>{ prog.style.display='none'; bar.style.width='0%'; },1000);
+      const finishSave=(gdInfo)=>{
+        if(gdInfo){
+          newS.driveId=gdInfo.driveId;
+          newS.driveLink=gdInfo.driveLink;
+          newS.driveName=gdInfo.driveName;
+        }
+        sks.push(newS);
+        DB.set('skrips',sks);
+        addActivity('Upload skrip "'+title+'"');
+        addNotification(currentUser.id,'success','Skrip "'+title+'" berhasil ditambahkan'+(gdInfo?' (tersimpan di Google Drive kamu)':''));
+        toast('Skrip berhasil diupload!'+(gdInfo?' Tersimpan di Drive kamu.':' (tanpa Drive)'),'success');
+        skripFileData=null;
+        document.getElementById('skripFileName').style.display='none';
+        document.getElementById('sTitle').value='';
+        document.getElementById('sDesc').value='';
+        document.getElementById('sVer').value='';
+        document.getElementById('skripFile').value='';
+        setTimeout(()=>{ prog.style.display='none'; bar.style.width='0%'; },1000);
+      };
+      if(gdAccessToken&&GOOGLE_CLIENT_ID!=='ganti-dengan-client-id-kamu'){
+        gdUploadFile(skripFileData)
+          .then(finishSave)
+          .catch(err=>{ finishSave(null); toast('Tersimpan lokal, Gagal ke Drive: '+err.message,'warning'); });
+      } else {
+        finishSave(null);
+      }
     }
   },200);
+}
+
+// ===== GOOGLE DRIVE INTEGRATION =====
+function saveGdClientId(){
+  const val=document.getElementById('gdClientIdInput').value.trim();
+  localStorage.setItem('gd_client_id',val);
+  toast('Client ID tersimpan!','success');
+}
+const GOOGLE_CLIENT_ID = localStorage.getItem('gd_client_id') || 'ganti-dengan-client-id-kamu';
+const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+let gdTokenClient = null;
+let gdAccessToken = null;
+
+function gdLoadClient(){
+  if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2) return false;
+  if(GOOGLE_CLIENT_ID==='ganti-dengan-client-id-kamu'){
+    document.getElementById('gdStatus').textContent='⚠️ Client ID belum di-set';
+    return false;
+  }
+  if(!gdTokenClient){
+    gdTokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:GOOGLE_CLIENT_ID,
+      scope:GOOGLE_SCOPES,
+      callback:(resp)=>{
+        if(resp.access_token){
+          gdAccessToken=resp.access_token;
+          gdSetLinked(true);
+        }
+      }
+    });
+  }
+  return true;
+}
+
+function gdSetLinked(linked){
+  const btn=document.getElementById('gdConnectBtn');
+  const st=document.getElementById('gdStatus');
+  if(linked){
+    btn.textContent='✅ Drive Terhubung';
+    btn.classList.add('btn-green');
+    btn.disabled=true;
+    st.textContent='Siap upload ke Google Drive kamu';
+    localStorage.setItem('gd_linked','1');
+  } else {
+    btn.textContent='🔗 Hubungkan Google Drive';
+    btn.classList.remove('btn-green');
+    btn.disabled=false;
+    st.textContent='Belum terhubung';
+  }
+}
+
+function gdAuth(){
+  if(!gdLoadClient()){
+    toast('Google API belum dimuat. Periksa koneksi internet.','error');
+    return;
+  }
+  if(GOOGLE_CLIENT_ID==='ganti-dengan-client-id-kamu'){
+    toast('Masukkan GOOGLE Client ID di pengaturan dulu!','error');
+    return;
+  }
+  gdTokenClient.requestAccessToken();
+}
+
+async function gdEnsureFolder(){
+  const res=await fetch('https://www.googleapis.com/drive/v3/files?q='+encodeURIComponent("mimeType='application/vnd.google-apps.folder' and name='CyberDrive Submission' and trashed=false")+'&fields=files(id,name)&spaces=drive',{
+    headers:{Authorization:'Bearer '+gdAccessToken}
+  });
+  const data=await res.json();
+  if(data.files&&data.files.length) return data.files[0].id;
+  const metaRes=await fetch('https://www.googleapis.com/drive/v3/files',{
+    method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+gdAccessToken},
+    body:JSON.stringify({name:'CyberDrive Submission',mimeType:'application/vnd.google-apps.folder'})
+  });
+  const created=await metaRes.json();
+  return created.id;
+}
+
+async function gdUploadFile(file){
+  if(!gdAccessToken){
+    await new Promise((resolve)=>{
+      const btn=document.getElementById('gdConnectBtn');
+      const status=document.getElementById('gdStatus');
+      toast('Hubungkan Google Drive dulu!','error');
+      status.textContent='⚠️ Wajib hubungkan sebelum upload';
+      resolve();
+    });
+    throw new Error('Google Drive belum terhubung');
+  }
+  const folderId=await gdEnsureFolder();
+  const metadata={name:file.name,parents:[folderId]};
+  const form=new FormData();
+  form.append('metadata',new Blob([JSON.stringify(metadata)],{type:'application/json'}));
+  form.append('file',file);
+  const res=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,size',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+gdAccessToken},
+    body:form
+  });
+  if(!res.ok) throw new Error('Google Drive upload gagal: '+res.status);
+  const data=await res.json();
+  await fetch('https://www.googleapis.com/drive/v3/files/'+data.id+'/permissions?sendNotificationEmail=false',{
+    method:'POST',
+    headers:{'Content-Type':'application/json',Authorization:'Bearer '+gdAccessToken},
+    body:JSON.stringify({role:'reader',type:'anyone'})
+  });
+  return {
+    driveId:data.id,
+    driveName:data.name,
+    driveSize:data.size||file.size,
+    driveLink:'https://drive.google.com/file/d/'+data.id+'/view'
+  };
 }
 
 // ===== ABSENSI =====
@@ -1572,7 +1744,7 @@ function checkIn(){
   });
   DB.set('absensi',abs);
   addActivity('Check in absensi');
-  addNotification('success','Check in berhasil');
+  addNotification(currentUser.id,'success','Check in berhasil');
   toast('Check in berhasil!','success');
   refreshAbsensi();
 }
@@ -1585,7 +1757,7 @@ function checkOut(){
     rec.checkOut=new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     DB.set('absensi',abs);
     addActivity('Check out absensi');
-    addNotification('info','Check out berhasil. Durasi: '+calcDuration(rec.checkIn,rec.checkOut));
+    addNotification(currentUser.id,'info','Check out berhasil. Durasi: '+calcDuration(rec.checkIn,rec.checkOut));
     toast('Check out berhasil!','success');
     refreshAbsensi();
   }
@@ -1672,7 +1844,7 @@ function addGlobalComment(){
   DB.set('comments',comments);
   input.value='';
   addActivity('Menambahkan komentar');
-  addNotification('info','Komentar baru dari '+currentUser.name);
+  addNotification(currentUser.id,'info','Komentar baru dari '+currentUser.name);
   toast('Komentar terkirim!','success');
   renderAllComments();
 }
@@ -1726,6 +1898,7 @@ function openDetail(type,id){
       <button class="btn btn-outline btn-sm" onclick="${type==='video'&&(videoFiles[id]||item.link)?`downloadVideo('${id}','${esc(item.file)}')`:`toast('Download dimulai...','info')}`}">⬇ Download</button>
       ${type==='video'&&item.link?`<button class="btn btn-outline btn-sm" onclick="window.open('${esc(item.link)}','_blank')">🔗 Buka Link</button>`:''}
       ${type==='video'&&item.link&&linkType(item)==='drive'?`<button class="btn btn-outline btn-sm" onclick="openDriveFile('${esc(item.link)}')">📁 Cek di Drive</button>`:''}
+      ${type==='skrip'&&item.driveLink?`<button class="btn btn-outline btn-sm" onclick="window.open('${esc(item.driveLink)}','_blank')">📁 Lihat di Drive</button>`:''}
       ${currentUser.role==='admin'?`<button class="btn btn-outline btn-sm" onclick="deleteItem('${type}','${id}')">🗑️ Hapus</button>`:''}
     </div>
     <h4 style="margin-bottom:12px;">Komentar (${comments.length})</h4>
@@ -1891,17 +2064,18 @@ function handleSearch(q){
 }
 
 // ===== NOTIFICATIONS =====
-function addNotification(type,msg){
+function addNotification(userId,type,msg){
   const n=DB.get('notifications');
-  n.push({id:'n'+Date.now(),type,msg,date:Date.now()});
+  n.push({id:'n'+Date.now(),userId:userId||'_all',type,msg,date:Date.now()});
   DB.set('notifications',n);
   renderNotifications();
 }
 
 function renderNotifications(){
-  const notifs=DB.get('notifications').slice(-10).reverse();
+  const allNotifs=DB.get('notifications');
+  const notifs=allNotifs.filter(n=>!n.userId||n.userId==='_all'||n.userId===currentUser.id).slice(-10).reverse();
   document.getElementById('notifList').innerHTML=notifs.length?notifs.map(n=>{
-    const colors={success:'var(--green)',error:'var(--red)',info:'var(--accent)'};
+    const colors={success:'var(--green)',error:'var(--red)',warning:'var(--yellow)',info:'var(--accent)'};
     return `<div class="notif-item"><span class="dot" style="background:${colors[n.type]||'var(--accent)'}"></span><div><div>${esc(n.msg)}</div><div style="font-size:.7rem;color:var(--text2);margin-top:2px;">${timeAgo(n.date)}</div></div></div>`;
   }).join(''):'<p style="padding:20px;text-align:center;color:var(--text2);font-size:.85rem;">Tidak ada notifikasi.</p>';
 }
@@ -2101,6 +2275,7 @@ function switchAdminTab(tab){
   document.getElementById('adminTab-'+tab).classList.add('active');
   if(tab==='overview') renderAdminOverview();
   if(tab==='users') renderAdminUsers();
+  if(tab==='review') renderAdminReview();
   if(tab==='monitor') renderAdminMonitor();
   if(tab==='absensiAll') renderAdminAbsensiAll();
   if(tab==='links') renderAdminLinks();
@@ -2253,6 +2428,89 @@ function adminViewUserAbsensi(userId){
   absensiTargetUser=u;
   showPage('absensi');
   toast('Beralih ke absensi: '+u.name,'info');
+}
+
+// ===== ADMIN REVIEW TUGAS =====
+function renderAdminReview(){
+  const users=DB.get('users');
+  const vids=DB.get('videos');
+  const sks=DB.get('skrips');
+  const typeFilter=document.getElementById('reviewTypeFilter').value;
+  const statusFilter=document.getElementById('reviewStatusFilter').value;
+  const userSel=document.getElementById('reviewUserFilter');
+  userSel.innerHTML='<option value="">Semua Pengguna</option>'+users.map(u=>`<option value="${esc(u.username)}">${esc(u.name)} (@${esc(u.username)})</option>`).join('');
+  const userFilter=userSel.value;
+  let allItems=[];
+  if(!typeFilter||typeFilter==='skrip'){
+    sks.forEach(s=>allItems.push({...s,_type:'skrip'}));
+  }
+  if(!typeFilter||typeFilter==='video'){
+    vids.forEach(v=>allItems.push({...v,_type:'video'}));
+  }
+  if(userFilter) allItems=allItems.filter(i=>i.uploadBy===userFilter);
+  if(statusFilter) allItems=allItems.filter(i=>(i.reviewStatus||'pending')===statusFilter);
+  allItems.sort((a,b)=>b.date-a.date);
+  const pending=allItems.filter(i=>(i.reviewStatus||'pending')==='pending').length;
+  const approved=allItems.filter(i=>i.reviewStatus==='approved').length;
+  const revision=allItems.filter(i=>i.reviewStatus==='revision').length;
+  document.getElementById('reviewSummary').innerHTML=`<strong>${allItems.length}</strong> total &middot; <span style="color:var(--yellow)">${pending} pending</span> &middot; <span style="color:var(--green)">${approved} disetujui</span> &middot; <span style="color:var(--red)">${revision} revisi</span>`;
+  const el=document.getElementById('adminReviewCards');
+  if(!allItems.length){ el.innerHTML='<div style="text-align:center;color:var(--text2);padding:40px;">Tidak ada tugas ditemukan.</div>'; return; }
+  el.innerHTML=allItems.map(item=>{
+    const u=users.find(x=>x.username===item.uploadBy)||{name:item.uploadBy};
+    const rs=item.reviewStatus||'pending';
+    const statusBadge={pending:'badge-yellow',approved:'badge-green',revision:'badge-red'}[rs];
+    const statusLabel={pending:'⏳ Pending',approved:'✅ Disetujui',revision:'🔄 Perlu Revisi'}[rs];
+    const isSkrip=item._type==='skrip';
+    return `<div class="file-card" style="margin-bottom:12px;padding:20px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span class="badge ${isSkrip?'badge-purple':'badge-green'}" style="font-size:.65rem;">${isSkrip?'📄 SKRIP':'🎬 LINK'}</span>
+            <span class="badge ${statusBadge}" style="font-size:.65rem;">${statusLabel}</span>
+          </div>
+          <h4 style="margin-bottom:4px;">${esc(item.title)}</h4>
+          <p style="color:var(--text2);font-size:.82rem;margin-bottom:6px;">${esc(item.desc||'Tidak ada deskripsi')}</p>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:.78rem;color:var(--text2);">
+            <span>👤 ${esc(u.name)}</span>
+            <span>📁 ${item.cat||'-'}</span>
+            ${isSkrip?`<span>📝 v${esc(item.ver||'1.0')}</span>`:''}
+            <span>📅 ${new Date(item.date).toLocaleDateString('id-ID')}</span>
+            <span>${isSkrip?formatSize(item.size):'🔗 Link'}</span>
+          </div>
+          ${item.reviewComment?`<div style="margin-top:8px;padding:10px;background:var(--input);border-radius:8px;font-size:.82rem;"><strong>Komentar Review:</strong> ${esc(item.reviewComment)}</div>`:''}
+          <div style="margin-top:8px;">
+            <input type="text" id="reviewComment_${item.id}" placeholder="Tambah komentar review..." value="${esc(item.reviewComment||'')}" style="width:100%;max-width:400px;background:var(--input);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:.82rem;">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-green btn-sm" onclick="reviewItem('${item._type}','${item.id}','approved')">✅ Setujui</button>
+          <button class="btn btn-red btn-sm" onclick="reviewItem('${item._type}','${item.id}','revision')">🔄 Revisi</button>
+          <button class="btn btn-outline btn-sm" onclick="openDetail('${item._type}','${item.id}')">👁</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function reviewItem(type,id,status){
+  const comment=(document.getElementById('reviewComment_'+id)||{}).value||'';
+  const items=type==='skrip'?DB.get('skrips'):DB.get('videos');
+  const item=items.find(x=>x.id===id);
+  if(!item) return;
+  item.reviewStatus=status;
+  item.reviewComment=comment;
+  if(type==='skrip') DB.set('skrips',items); else DB.set('videos',items);
+  const users=DB.get('users');
+  const uploader=users.find(u=>u.username===item.uploadBy);
+  const statusLabel=status==='approved'?'Disetujui ✅':'Perlu Revisi 🔄';
+  if(uploader){
+    addNotification(uploader.id, status==='approved'?'success':'warning',
+      'Tugas "'+item.title+'" '+statusLabel+(comment?' - '+comment:''));
+  }
+  addActivity('Review tugas "'+item.title+'" → '+statusLabel);
+  toast('Tugas berhasil di-review!','success');
+  renderAdminReview();
 }
 
 function renderAdminMonitor(){
