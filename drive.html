@@ -968,12 +968,7 @@ function initData(){
       {id:'u2',name:'Budi Santoso',username:'budi',email:'budi@drive.com',password:'budi123',role:'user',phone:'081234567891',created:Date.now()}
     ]);
   }
-  if(!DB.get('videos').length){
-    DB.set('videos',[
-      {id:'v1',title:'Tutorial HTML Dasar',desc:'Belajar HTML dari nol untuk pemula',cat:'Tutorial',tags:['html','web','dasar'],file:'tutorial_html.mp4',size:45000000,duration:'12:34',thumb:'',uploadBy:'admin',date:Date.now()-86400000*2,status:'active'},
-      {id:'v2',title:'Meeting Tim Developer',desc:'Rapat koordinasi sprint bulanan',cat:'Meeting',tags:['meeting','dev'],file:'meeting_dev.mp4',size:120000000,duration:'45:12',thumb:'',uploadBy:'budi',date:Date.now()-86400000,status:'active'}
-    ]);
-  }
+
   if(!DB.get('skrips').length){
     DB.set('skrips',[
       {id:'s1',title:'Modul PHP Laravel',desc:'Panduan lengkap PHP Laravel 10',cat:'Modul',ver:'v2.1',file:'modul_laravel.pdf',size:2500000,uploadBy:'admin',date:Date.now()-86400000*3,status:'active'},
