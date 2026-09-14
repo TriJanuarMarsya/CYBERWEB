@@ -4,12 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 
-const PORT = process.env.PORT || 3000;
+const HTTP_PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
-
-http.createServer(requestHandler).listen(PORT, HOST, () => {
-    console.log(`HTTP server berjalan di port ${PORT}`);
-});
 const HTTPS_PORT = 3443;
 const BASE = __dirname;
 const DATA_FILE = path.join(BASE, 'data.json');
