@@ -63,6 +63,10 @@ body { font-family:'Segoe UI',system-ui,sans-serif; background:var(--bg); color:
 .btn-outline { background:transparent; border:1px solid var(--border); color:var(--text); }
 .btn-outline:hover { border-color:var(--accent); color:var(--accent); }
 .btn-sm { padding:6px 14px; font-size:.78rem; }
+.btn-google { display:flex; align-items:center; justify-content:center; gap:10px; width:100%; padding:12px; background:#fff; color:#333; border:1px solid #dadce0; border-radius:8px; font-weight:600; font-size:.9rem; cursor:pointer; transition:.2s; }
+.btn-google:hover { background:#f8f9fa; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+.auth-divider { display:flex; align-items:center; gap:12px; margin:20px 0 16px; color:var(--text2); font-size:.78rem; }
+.auth-divider::before, .auth-divider::after { content:''; flex:1; height:1px; background:var(--border); }
 .remember { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; font-size:.82rem; }
 .remember label { display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text2); }
 .remember a { color:var(--accent); text-decoration:none; }
@@ -433,6 +437,11 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
       </div>
       <button class="btn btn-primary" type="submit">Login</button>
     </form>
+    <div class="auth-divider"><span>atau login dengan</span></div>
+    <button type="button" class="btn btn-google" onclick="googleLogin()">
+      <svg viewBox="0 0 24 24" width="18" height="18"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Login dengan Google
+    </button>
     <form id="registerForm" style="display:none" onsubmit="handleRegister(event)">
       <div class="form-row">
         <div class="form-group">
@@ -1079,6 +1088,115 @@ function handleRegister(e){
   switchAuthTab('login');
 }
 
+// ===== GOOGLE LOGIN =====
+let gdLoginTokenClient = null;
+
+function googleLogin(){
+  if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2){
+    toast('Google Auth belum dimuat. Periksa koneksi internet.','error');
+    return;
+  }
+  if(!GOOGLE_CLIENT_ID){
+    toast('Google Client ID belum di-set di Profil!','error');
+    return;
+  }
+  if(!gdLoginTokenClient){
+    gdLoginTokenClient=google.accounts.oauth2.initTokenClient({
+      client_id:GOOGLE_CLIENT_ID,
+      scope:'openid email profile',
+      callback:async (res)=>{
+        if(res.access_token){
+          try{
+            const r=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+res.access_token}});
+            const info=await r.json();
+            window._pendingGoogleInfo=info;
+            handleGoogleUser(info);
+          }catch(e){
+            toast('Gagal mengambil data akun Google.','error');
+          }
+        }else{
+          toast('Login Google dibatalkan.','info');
+        }
+      }
+    });
+  }
+  gdLoginTokenClient.requestAccessToken();
+}
+
+function handleGoogleUser(info){
+  if(!info||!info.email){
+    toast('Akun Google tidak memiliki email valid.','error');
+    return;
+  }
+  const users=DB.get('users');
+  const found=users.find(x=>x.email&&x.email.toLowerCase()===info.email.toLowerCase());
+  if(found){
+    let changed=false;
+    if(!found.googleId){ found.googleId=info.sub; changed=true; }
+    if(info.picture&&!found.avatar){ found.avatar=info.picture; changed=true; }
+    if(changed) DB.set('users',users);
+    currentUser=found;
+    DB.set('currentUser',found);
+    addActivity('Login dengan akun Google');
+    addNotification(found.id,'info','Login berhasil via Google, selamat datang '+found.name);
+    enterApp();
+  }else{
+    openGoogleSignup(info);
+  }
+}
+
+function openGoogleSignup(info){
+  const modal=document.getElementById('modalContent');
+  modal.className='modal';
+  modal.innerHTML=`<h3>Lengkapi Data Akun</h3>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px;background:var(--input);border-radius:10px;">
+      ${info.picture?`<img src="${esc(info.picture)}" style="width:44px;height:44px;border-radius:50%;">`:`<div class="user-avatar" style="width:44px;height:44px;font-size:1rem;">${((info.name||info.email)||'G')[0].toUpperCase()}</div>`}
+      <div>
+        <div style="font-weight:600;">${esc(info.name||info.email)}</div>
+        <div style="font-size:.78rem;color:var(--text2);">${esc(info.email)}</div>
+      </div>
+    </div>
+    <div class="form-group"><label>Username</label><input type="text" id="gsUser" placeholder="Username kamu"></div>
+    <div class="form-group"><label>No. HP <span style="color:var(--red);">*</span></label><input type="text" id="gsPhone" placeholder="08xxxxxx" inputmode="numeric"></div>
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="confirmGoogleSignup()">Daftar Sekarang</button>
+    </div>`;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function confirmGoogleSignup(){
+  const info=window._pendingGoogleInfo;
+  if(!info) return;
+  const users=DB.get('users');
+  const username=document.getElementById('gsUser').value.trim();
+  const phone=document.getElementById('gsPhone').value.trim();
+  if(!username||!phone){ toast('Username & No. HP wajib diisi!','error'); return; }
+  if(users.find(x=>x.username===username)){ toast('Username sudah dipakai!','error'); return; }
+  if(!/^(\+?62|08)[0-9]{8,13}$/.test(phone)){ toast('Format No. HP tidak valid','error'); return; }
+  const newUser={
+    id:'u'+Date.now(),
+    name:info.name||info.email.split('@')[0],
+    username:username,
+    email:info.email,
+    password:'google-'+info.sub,
+    phone:phone,
+    googleId:info.sub,
+    avatar:info.picture||'',
+    role:'user',
+    created:Date.now()
+  };
+  users.push(newUser);
+  DB.set('users',users);
+  currentUser=newUser;
+  DB.set('currentUser',newUser);
+  window._pendingGoogleInfo=null;
+  closeModal();
+  addActivity('Daftar & login via Google');
+  addNotification(newUser.id,'success','Selamat datang! Akun Google berhasil terhubung.');
+  enterApp();
+}
+
 function handleLogout(){
   addActivity('Logout dari sistem');
   currentUser=null;
@@ -1099,12 +1217,14 @@ function enterApp(){
 
 function updateUserUI(){
   if(!currentUser) return;
-  document.getElementById('sidebarAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
+  const avatarHTML=currentUser.avatar?`<img src="${esc(currentUser.avatar)}" alt="" style="width:100%;height:100%;border-radius:50%;object-fit:cover;">`:(currentUser.name||'A').charAt(0).toUpperCase();
+  const el=document.getElementById('sidebarAvatar');
+  el.innerHTML=avatarHTML;
   document.getElementById('sidebarName').textContent=currentUser.name;
   document.getElementById('sidebarRole').textContent=currentUser.role==='admin'?'Administrator':'Pengguna';
   document.getElementById('navUsers').style.display=currentUser.role==='admin'?'flex':'none';
   document.getElementById('navAdminPanel').style.display=currentUser.role==='admin'?'flex':'none';
-  document.getElementById('profileAvatar').textContent=currentUser.name.charAt(0).toUpperCase();
+  document.getElementById('profileAvatar').innerHTML=avatarHTML;
   document.getElementById('profileName').textContent=currentUser.name;
   document.getElementById('profileEmail').textContent=currentUser.email;
   document.getElementById('profilePhone').textContent=currentUser.phone||'-';
