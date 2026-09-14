@@ -1031,6 +1031,26 @@ function initData(){
 let currentUser = null;
 const videoFiles = {};
 const ADMIN_EMAIL = 'januartri644@gmail.com';
+const ADMIN_USERNAME = 'januar';
+
+// ===== FORCE ADMIN ACCOUNT (ensure admin is always januar/januartri644@gmail.com) =====
+function forceAdminAccount(){
+  const users=DB.get('users');
+  if(!users||!users.length) return;
+  let touched=false;
+  users.forEach(u=>{
+    const isAdminByEmail=(u.email||'').trim().toLowerCase()===ADMIN_EMAIL;
+    const isAdminByName=(u.username||'').trim()===ADMIN_USERNAME;
+    if(isAdminByEmail||isAdminByName||u.id==='u1'){
+      if(u.username!==ADMIN_USERNAME){ u.username=ADMIN_USERNAME; touched=true; }
+      if(u.email!==ADMIN_EMAIL){ u.email=ADMIN_EMAIL; touched=true; }
+      if(u.role!=='admin'){ u.role='admin'; touched=true; }
+    } else {
+      // ensure regular users can never get locked to admin
+    }
+  });
+  if(touched){ DB.set('users',users); }
+}
 
 // ===== AUTH =====
 function switchAuthTab(tab){
@@ -2786,6 +2806,7 @@ function setupDragDrop(){
 
 // ===== INIT =====
 initData();
+forceAdminAccount();
 intakeShareLink();
 
 function startApp(){
@@ -2807,10 +2828,11 @@ if(typeof fetch==='undefined'){
     .then(d=>{
       if(d&&Object.keys(d).length){ DB.loadFrom(d); }
       else { DB.sync(true); }
+      forceAdminAccount();
       DB._ready=true;
       startApp();
     })
-    .catch(()=>{ DB._ready=true; startApp(); });
+    .catch(()=>{ forceAdminAccount(); DB._ready=true; startApp(); });
 }
 
 // Close notif on outside click
