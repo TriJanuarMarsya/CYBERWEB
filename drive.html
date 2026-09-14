@@ -1537,7 +1537,7 @@ function uploadSkrip(){
         document.getElementById('skripFile').value='';
         setTimeout(()=>{ prog.style.display='none'; bar.style.width='0%'; },1000);
       };
-      if(gdAccessToken&&GOOGLE_CLIENT_ID!=='ganti-dengan-client-id-kamu'){
+      if(gdAccessToken&&GOOGLE_CLIENT_ID){
         gdUploadFile(skripFileData)
           .then(finishSave)
           .catch(err=>{ finishSave(null); toast('Tersimpan lokal, Gagal ke Drive: '+err.message,'warning'); });
@@ -1554,14 +1554,14 @@ function saveGdClientId(){
   localStorage.setItem('gd_client_id',val);
   toast('Client ID tersimpan!','success');
 }
-const GOOGLE_CLIENT_ID = localStorage.getItem('gd_client_id') || 'ganti-dengan-client-id-kamu';
+const GOOGLE_CLIENT_ID = localStorage.getItem('gd_client_id') || '262781712642-rdb6170q5n0cg80id0plmsrgd5ii8m18.apps.googleusercontent.com';
 const GOOGLE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
 let gdTokenClient = null;
 let gdAccessToken = null;
 
 function gdLoadClient(){
   if(typeof google==='undefined'||!google.accounts||!google.accounts.oauth2) return false;
-  if(GOOGLE_CLIENT_ID==='ganti-dengan-client-id-kamu'){
+  if(!GOOGLE_CLIENT_ID){
     document.getElementById('gdStatus').textContent='⚠️ Client ID belum di-set';
     return false;
   }
@@ -1602,8 +1602,8 @@ function gdAuth(){
     toast('Google API belum dimuat. Periksa koneksi internet.','error');
     return;
   }
-  if(GOOGLE_CLIENT_ID==='ganti-dengan-client-id-kamu'){
-    toast('Masukkan GOOGLE Client ID di pengaturan dulu!','error');
+  if(!GOOGLE_CLIENT_ID){
+    toast('Masukkan Google Client ID dulu di Profil!','error');
     return;
   }
   gdTokenClient.requestAccessToken();
