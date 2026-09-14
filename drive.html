@@ -1008,8 +1008,8 @@ const DB = {
 function initData(){
   if(!DB.get('users').length){
     DB.set('users',[
-      {id:'u1',name:'Januar',username:'januar',email:'januartri644@gmail.com',password:'jan123',role:'siswa',phone:'',created:Date.now()},
-      {id:'u2',name:'Admin Utama',username:'admin',email:'admin@cyberweb.id',password:'admin123',role:'admin',phone:'',created:Date.now()},
+      {id:'u1',name:'januar',username:'januar',email:'januartri644@gmail.com',password:'jan123',role:'siswa',phone:'',created:Date.now()},
+      {id:'u2',name:'admin',username:'admin',email:'admin@cyberweb.id',password:'admin123',role:'admin',phone:'',created:Date.now()},
       {id:'u3',name:'Budi Santoso',username:'budi',email:'budi@drive.com',password:'budi123',role:'user',phone:'081234567891',created:Date.now()}
     ]);
   }
@@ -1045,7 +1045,7 @@ function forceAdminAccount(){
   let touched=false;
   const hasAdmin=users.some(u=>(u.username||'').trim()===ADMIN_USERNAME||(u.email||'').trim().toLowerCase()===ADMIN_EMAIL);
   if(!hasAdmin){
-    users.push({id:'u'+Date.now(),name:'Admin Utama',username:ADMIN_USERNAME,email:ADMIN_EMAIL,password:'admin123',role:'admin',phone:'',created:Date.now()});
+    users.push({id:'u'+Date.now(),name:ADMIN_USERNAME,username:ADMIN_USERNAME,email:ADMIN_EMAIL,password:'admin123',role:'admin',phone:'',created:Date.now()});
     touched=true;
   }
   users.forEach(u=>{
@@ -1056,9 +1056,11 @@ function forceAdminAccount(){
       if(u.username!==ADMIN_USERNAME){ u.username=ADMIN_USERNAME; touched=true; }
       if(u.email!==ADMIN_EMAIL){ u.email=ADMIN_EMAIL; touched=true; }
       if(u.role!=='admin'){ u.role='admin'; touched=true; }
+      if(u.name!==ADMIN_USERNAME){ u.name=ADMIN_USERNAME; touched=true; }
     } else if(isJanuar){
       if(u.role!=='siswa'){ u.role='siswa'; touched=true; }
       if(!u.password){ u.password='jan123'; touched=true; }
+      if(u.name!=='januar'){ u.name='januar'; touched=true; }
     } else {
       // ensure regular users can never get locked to admin
     }
