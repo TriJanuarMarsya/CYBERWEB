@@ -1,5 +1,7 @@
 {
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "dotenv": "^17.4.2",
     "localtunnel": "^2.0.2",
     "selfsigned": "^5.5.0"
   }

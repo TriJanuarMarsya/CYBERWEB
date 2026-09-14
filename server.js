@@ -3,12 +3,13 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+require('dotenv').config();
+const { initSchema, loadAll, replaceAll } = require('./lib/db');
 
 const HTTP_PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0';
 const HTTPS_PORT = 3443;
 const BASE = __dirname;
-const DATA_FILE = path.join(BASE, 'data.json');
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -38,15 +39,11 @@ const MIME = {
 };
 
 function readData() {
-  try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
-  } catch (e) {
-    return {};
-  }
+  return loadAll();
 }
 
 function writeData(d) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(d, null, 2), 'utf8');
+  return replaceAll(d);
 }
 
 function sendJSON(res, status, obj) {
@@ -60,7 +57,9 @@ function handler(req, res) {
 
   // ===== API: get full data store =====
   if (req.method === 'GET' && url === '/api/data') {
-    sendJSON(res, 200, readData());
+    readData()
+      .then((data) => sendJSON(res, 200, data))
+      .catch((e) => sendJSON(res, 500, { ok: false, error: String(e && e.message || e) }));
     return;
   }
 
@@ -69,14 +68,19 @@ function handler(req, res) {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
+      let parsed;
       try {
-        const parsed = JSON.parse(body);
+        parsed = JSON.parse(body);
         if (typeof parsed !== 'object' || parsed === null) throw new Error('invalid body');
-        writeData(parsed);
-        sendJSON(res, 200, { ok: true });
       } catch (e) {
         sendJSON(res, 400, { ok: false, error: 'invalid JSON' });
+        return;
       }
+      Promise.resolve()
+        .then(() => initSchema())
+        .then(() => writeData(parsed))
+        .then(() => sendJSON(res, 200, { ok: true }))
+        .catch((e) => sendJSON(res, 500, { ok: false, error: String(e && e.message || e) }));
     });
     return;
   }
@@ -142,6 +146,9 @@ function getLocalIP() {
 // Start HTTP server
 const httpServer = http.createServer(handler);
 httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+  initSchema()
+    .then(() => console.log('  ✔  Database (Neon) tersedia'))
+    .catch((e) => console.log('  ⚠️  Database: ' + String(e && e.message || e)));
   console.log('');
   console.log('  ╔══════════════════════════════════════════════╗');
   console.log('  ║      🚀 Drive Storage Server Running          ║');

@@ -1,38 +1,54 @@
-const fs = require('fs');
+const { initSchema, loadAll, replaceAll } = require('../lib/db');
 
-const DATA_FILE = '/tmp/data.json';
-
-function readData() {
+async function withDb(fn) {
+  if (!process.env.DATABASE_URL) return { error: 'DATABASE_URL is not set' };
   try {
-    return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+    await initSchema();
+    return await fn();
   } catch (e) {
-    return {};
+    return { error: String(e && e.message || e) };
   }
 }
 
-module.exports = function handler(req, res) {
+module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
   if (req.method === 'GET') {
+    const result = await withDb(async () => ({ data: await loadAll() }));
+    if (result.error) {
+      res.statusCode = 500;
+      res.end(JSON.stringify({ ok: false, error: result.error }));
+      return;
+    }
     res.statusCode = 200;
-    res.end(JSON.stringify(readData()));
+    res.end(JSON.stringify(result.data));
     return;
   }
 
   if (req.method === 'POST') {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
-    req.on('end', () => {
+    req.on('end', async () => {
+      let parsed;
       try {
-        const parsed = JSON.parse(body);
+        parsed = JSON.parse(body);
         if (typeof parsed !== 'object' || parsed === null) throw new Error('invalid body');
-        fs.writeFileSync(DATA_FILE, JSON.stringify(parsed), 'utf8');
-        res.statusCode = 200;
-        res.end(JSON.stringify({ ok: true }));
       } catch (e) {
         res.statusCode = 400;
         res.end(JSON.stringify({ ok: false, error: 'invalid JSON' }));
+        return;
       }
+      const result = await withDb(async () => {
+        await replaceAll(parsed);
+        return { ok: true };
+      });
+      if (result.error) {
+        res.statusCode = 500;
+        res.end(JSON.stringify({ ok: false, error: result.error }));
+        return;
+      }
+      res.statusCode = 200;
+      res.end(JSON.stringify(result));
     });
     return;
   }
