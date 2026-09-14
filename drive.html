@@ -996,7 +996,7 @@ const DB = {
 function initData(){
   if(!DB.get('users').length){
     DB.set('users',[
-      {id:'u1',name:'Admin Utama',username:'admin',email:'admin@drive.com',password:'admin123',role:'admin',phone:'081234567890',created:Date.now()},
+      {id:'u1',name:'Tri Januar',username:'admin',email:'januartri644@gmail.com',password:'admin123',role:'admin',phone:'',created:Date.now()},
       {id:'u2',name:'Budi Santoso',username:'budi',email:'budi@drive.com',password:'budi123',role:'user',phone:'081234567891',created:Date.now()}
     ]);
   }
@@ -1022,6 +1022,7 @@ function initData(){
 // ===== GLOBALS =====
 let currentUser = null;
 const videoFiles = {};
+const ADMIN_EMAIL = 'januartri644@gmail.com';
 
 // ===== AUTH =====
 function switchAuthTab(tab){
@@ -1088,6 +1089,7 @@ function handleGoogleUser(info){
     let changed=false;
     if(!found.googleId){ found.googleId=info.sub; changed=true; }
     if(info.picture&&!found.avatar){ found.avatar=info.picture; changed=true; }
+    if(found.email.trim().toLowerCase()===ADMIN_EMAIL&&found.role!=='admin'){ found.role='admin'; changed=true; }
     if(changed) DB.set('users',users);
     currentUser=found;
     DB.set('currentUser',found);
@@ -1134,7 +1136,6 @@ function confirmGoogleSignup(){
   if(!username||!phone){ toast('Username & No. HP wajib diisi!','error'); return; }
   if(users.find(x=>x.username===username)){ toast('Username sudah dipakai!','error'); return; }
   if(!/^(\+?62|08)[0-9]{8,13}$/.test(phone)){ toast('Format No. HP tidak valid','error'); return; }
-  const adminExists=users.some(u=>u.role==='admin'&&u.googleId);
   const newUser={
     id:'u'+Date.now(),
     name:info.name||info.email.split('@')[0],
@@ -1144,7 +1145,7 @@ function confirmGoogleSignup(){
     phone:phone,
     googleId:info.sub,
     avatar:info.picture||'',
-    role:adminExists?'user':'admin',
+    role:info.email.trim().toLowerCase()===ADMIN_EMAIL?'admin':'user',
     created:Date.now()
   };
   users.push(newUser);
