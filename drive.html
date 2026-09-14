@@ -1168,7 +1168,7 @@ function confirmGoogleSignup(){
       <div><b>No. HP:</b> ${esc(newUser.phone||'-')}</div>
     </div>
     <p style="color:var(--green);font-size:.8rem;">Data tersimpan di database. Login berikutnya cukup pakai tombol Login dengan Google.</p>
-    <button class="btn btn-primary" style="margin-top:18px;" onclick="closeModal();enterApp()">Masuk ke Aplikasi</button>
+    <button class="btn btn-primary" style="margin-top:18px;" onclick="enterApp()">Masuk ke Dashboard</button>
   </div>`;
   document.getElementById('modalOverlay').classList.add('show');
 }
@@ -1183,6 +1183,7 @@ function handleLogout(){
 }
 
 function enterApp(){
+  closeModal();
   document.getElementById('loginPage').style.display='none';
   document.getElementById('app').style.display='flex';
   updateUserUI();
