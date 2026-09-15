@@ -803,7 +803,7 @@ video::-webkit-media-controls-panel { background:rgba(0,0,0,.7); }
             <h4 style="margin-bottom:8px;">⚙️ Pengaturan Google Drive</h4>
             <p style="font-size:.82rem;color:var(--text2);margin-bottom:12px;">Masukkan Google OAuth Client ID kamu agar user bisa upload skrip ke Google Drive masing-masing.</p>
             <div style="display:flex;gap:8px;">
-              <input type="text" id="gdClientIdInput" value="${esc(localStorage.getItem('gd_client_id')||'')}" placeholder="123456789012-xxxx.apps.googleusercontent.com" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.85rem;">
+              <input type="text" id="gdClientIdInput" value="" placeholder="123456789012-xxxx.apps.googleusercontent.com" style="flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.85rem;">
               <button class="btn btn-primary btn-sm" onclick="saveGdClientId()">Simpan</button>
             </div>
           </div>
@@ -1039,15 +1039,30 @@ const ADMIN_EMAIL = 'admin@cyberweb.id';
 const ADMIN_USERNAME = 'admin';
 
 // ===== FORCE ADMIN ACCOUNT (ensure @admin stays admin@cyberweb.id/admin) =====
+const SEED_USERS=[
+  {id:'u1',name:'januar',username:'januar',email:'januartri644@gmail.com',password:'jan123',role:'siswa',phone:''},
+  {id:'u2',name:'admin',username:'admin',email:'admin@cyberweb.id',password:'admin123',role:'admin',phone:''},
+  {id:'u3',name:'Budi Santoso',username:'budi',email:'budi@drive.com',password:'budi123',role:'user',phone:'081234567891'}
+];
 function forceAdminAccount(){
-  const users=DB.get('users');
-  if(!users||!users.length) return;
+  let users=DB.get('users');
+  if(!Array.isArray(users)) users=[];
   let touched=false;
+  // 1) ensure demo seed accounts exist (create if missing)
+  SEED_USERS.forEach(s=>{
+    const exist=users.find(u=>(u.username||'').trim().toLowerCase()===s.username.toLowerCase()||(u.email||'').trim().toLowerCase()===s.email.toLowerCase());
+    if(!exist){
+      users.push({...s,created:Date.now()});
+      touched=true;
+    }
+  });
+  // 2) ensure canonical admin account exists
   const hasAdmin=users.some(u=>(u.username||'').trim()===ADMIN_USERNAME||(u.email||'').trim().toLowerCase()===ADMIN_EMAIL);
   if(!hasAdmin){
-    users.push({id:'u'+Date.now(),name:ADMIN_USERNAME,username:ADMIN_USERNAME,email:ADMIN_EMAIL,password:'admin123',role:'admin',phone:'',created:Date.now()});
+    users.push({...SEED_USERS[1],created:Date.now()});
     touched=true;
   }
+  // 3) enforce roles: admin stays admin, januar stays siswa, seed roles enforced
   users.forEach(u=>{
     const isAdminByEmail=(u.email||'').trim().toLowerCase()===ADMIN_EMAIL;
     const isAdminByName=(u.username||'').trim()===ADMIN_USERNAME;
@@ -1062,10 +1077,12 @@ function forceAdminAccount(){
       if(!u.password){ u.password='jan123'; touched=true; }
       if(u.name!=='januar'){ u.name='januar'; touched=true; }
     } else {
-      // ensure regular users can never get locked to admin
+      const seed=SEED_USERS.find(s=>(s.username||'').toLowerCase()===(u.username||'').toLowerCase());
+      if(seed&&u.role!==seed.role){ u.role=seed.role; touched=true; }
     }
   });
   if(touched){ DB.set('users',users); }
+  return users;
 }
 
 // ===== AUTH =====
@@ -1279,6 +1296,8 @@ function updateUserUI(){
   document.getElementById('profileUploads').textContent=myVids;
   document.getElementById('profileComments').textContent=myComments;
   document.getElementById('profileLogins').textContent=DB.get('activities').filter(a=>a.userId===currentUser.id&&a.activity.includes('Login')).length;
+  const gdClient=document.getElementById('gdClientIdInput');
+  if(gdClient) gdClient.value=localStorage.getItem('gd_client_id')||'';
 }
 
 // ===== NAVIGATION =====
@@ -1930,9 +1949,9 @@ function checkOut(){
 }
 
 function calcDuration(inTime,outTime){
-  const parse=t=>{ const[p,pm]=t.split(' '); let[h,m,s]=p.split(':').map(Number); if(pm==='PM'&&h!==12)h+=12; if(pm==='AM'&&h===12)h=0; return h*3600+m*60+(s||0); };
+  const parse=t=>{ const[p,pm]=t.split(' ').filter(Boolean); let[h,m,s]=p.replace(/\./g,':').split(':').map(Number); if(pm==='PM'&&h!==12)h+=12; if(pm==='AM'&&h===12)h=0; return h*3600+m*60+(s||0); };
   const diff=parse(outTime)-parse(inTime);
-  if(diff<0) return '-';
+  if(!isFinite(diff)||diff<0) return '-';
   const h=Math.floor(diff/3600);
   const m=Math.floor((diff%3600)/60);
   const s=diff%60;
@@ -2239,7 +2258,7 @@ function addNotification(userId,type,msg){
 
 function renderNotifications(){
   const allNotifs=DB.get('notifications');
-  const notifs=allNotifs.filter(n=>!n.userId||n.userId==='_all'||n.userId===currentUser.id).slice(-10).reverse();
+  const notifs=allNotifs.filter(n=>!n.userId||n.userId==='_all'||(currentUser&&n.userId===currentUser.id)).slice(-10).reverse();
   document.getElementById('notifList').innerHTML=notifs.length?notifs.map(n=>{
     const colors={success:'var(--green)',error:'var(--red)',warning:'var(--yellow)',info:'var(--accent)'};
     return `<div class="notif-item"><span class="dot" style="background:${colors[n.type]||'var(--accent)'}"></span><div><div>${esc(n.msg)}</div><div style="font-size:.7rem;color:var(--text2);margin-top:2px;">${timeAgo(n.date)}</div></div></div>`;
@@ -2408,7 +2427,7 @@ function openFullStory(year,month,day){
     const totalCheckIns=abs.length;
     const completed=abs.filter(a=>a.checkOut).length;
     let totalMinutes=0;
-    abs.forEach(a=>{ if(a.checkOut){ const p=t=>{const[pp,pm]=t.split(' ');let[hh,mm,ss]=pp.split(':').map(Number);if(pm==='PM'&&hh!==12)hh+=12;if(pm==='AM'&&hh===12)hh=0;return hh*60+mm;}; totalMinutes+=p(a.checkOut)-p(a.checkIn); }});
+    abs.forEach(a=>{ if(a.checkOut){ const p=t=>{const pp=t.split(' ').filter(Boolean)[0];let[hh,mm,ss]=pp.replace(/\./g,':').split(':').map(Number);return hh*60+mm;}; totalMinutes+=p(a.checkOut)-p(a.checkIn); }});
     const totalH=Math.floor(totalMinutes/60);
     const totalM=totalMinutes%60;
     html+=`<div class="fullstory-summary">
@@ -2593,6 +2612,9 @@ function adminViewUserAbsensi(userId){
   if(!u) return;
   absensiTargetUser=u;
   showPage('absensi');
+  absensiTargetUser=u;
+  renderAbsensiUserSelect();
+  refreshAbsensi();
   toast('Beralih ke absensi: '+u.name,'info');
 }
 
@@ -2604,8 +2626,9 @@ function renderAdminReview(){
   const typeFilter=document.getElementById('reviewTypeFilter').value;
   const statusFilter=document.getElementById('reviewStatusFilter').value;
   const userSel=document.getElementById('reviewUserFilter');
-  userSel.innerHTML='<option value="">Semua Pengguna</option>'+users.map(u=>`<option value="${esc(u.username)}">${esc(u.name)} (@${esc(u.username)})</option>`).join('');
-  const userFilter=userSel.value;
+  const curUser=userSel.value;
+  userSel.innerHTML='<option value="">Semua Pengguna</option>'+users.map(u=>`<option value="${esc(u.username)}" ${u.username===curUser?'selected':''}>${esc(u.name)} (@${esc(u.username)})</option>`).join('');
+  const userFilter=curUser;
   let allItems=[];
   if(!typeFilter||typeFilter==='skrip'){
     sks.forEach(s=>allItems.push({...s,_type:'skrip'}));
@@ -2843,8 +2866,9 @@ if(typeof fetch==='undefined'){
   fetch('/api/data')
     .then(r=>r.json())
     .then(d=>{
-      if(d&&Object.keys(d).length){ DB.loadFrom(d); }
-      else { DB.sync(true); }
+      const serverEmpty=!d||!Object.keys(d).length||DB.keys.every(k=>!Array.isArray(d[k])||!d[k].length);
+      if(serverEmpty){ DB.sync(true); }
+      else { DB.loadFrom(d); }
       forceAdminAccount();
       DB._ready=true;
       startApp();
